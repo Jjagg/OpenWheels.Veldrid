@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <ShaderContentIncludePath>Shaders</ShaderContentIncludePath>
+    <ShaderOutputPath>$(BaseIntermediateOutputPath)</ShaderOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Veldrid" Version="4.2.0" />
+    <PackageReference Include="Veldrid.ImageSharp" Version="4.2.0" />
+    <PackageReference Include="ShaderGen.Primitives" Version="1.2.0-g6c2ba50db6" />
+    <PackageReference Include="ShaderGen.Build" PrivateAssets="All" Version="1.2.0-g6c2ba50db6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\OpenWheels\src\OpenWheels.Rendering\OpenWheels.Rendering.csproj" />
+    <ProjectReference Include="..\..\OpenWheels\src\OpenWheels\OpenWheels.csproj" />
+  </ItemGroup>
+
+  <Target Name="IncludeGeneratedShaderEmbeddedResource" AfterTargets="AssignTargetPaths" Condition="'$(ShaderContentIncludePath)' != ''">
+    <ItemGroup>
+      <EmbeddedResource Include="@(GeneratedShader)">
+        <LogicalName>%(FileName)%(Extension)</LogicalName>
+      </EmbeddedResource>
+    </ItemGroup>
+  </Target>
+
+</Project>
