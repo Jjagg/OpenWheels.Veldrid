@@ -72,7 +72,7 @@ namespace OpenWheels.Veldrid
 
             var vertexLayout = new VertexLayoutDescription(
                 new VertexElementDescription("Position", VertexElementSemantic.Position, VertexElementFormat.Float3),
-                new VertexElementDescription("Color", VertexElementSemantic.Color, VertexElementFormat.Byte4),
+                new VertexElementDescription("Color", VertexElementSemantic.Color, VertexElementFormat.Byte4_Norm),
                 new VertexElementDescription("TextureCoordinate", VertexElementSemantic.TextureCoordinate,
                     VertexElementFormat.Float2));
 

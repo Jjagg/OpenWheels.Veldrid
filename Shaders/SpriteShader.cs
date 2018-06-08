@@ -16,7 +16,7 @@ namespace OpenWheels.Veldrid.Shaders
         {
             FragmentInput output;
             output.Position = ShaderBuiltins.Mul(Wvp, new Vector4(input.Position, 1));
-            output.Color = new Vector4(input.Color.X / 255f, input.Color.Y / 255f, input.Color.Z / 255f, input.Color.W / 255f);
+            output.Color = input.Color;
             output.TextureCoordinates = input.TextureCoordinates;
             return output;
         }
@@ -34,7 +34,7 @@ namespace OpenWheels.Veldrid.Shaders
             [PositionSemantic]
             public Vector3 Position;
             [ColorSemantic]
-            public UInt4 Color;
+            public Vector4 Color;
             [TextureCoordinateSemantic]
             public Vector2 TextureCoordinates;
         }
