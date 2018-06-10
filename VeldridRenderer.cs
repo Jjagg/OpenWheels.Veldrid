@@ -9,9 +9,12 @@ using Veldrid.ImageSharp;
 
 namespace OpenWheels.Veldrid
 {
+    /// <summary>
+    /// <see cref="IRenderer"/> implementation that uses Veldrid to render.
+    /// </summary>
     public class VeldridRenderer : IRenderer, IDisposable
     {
-        private readonly GraphicsDevice _graphicsDevice;
+        public GraphicsDevice GraphicsDevice { get; }
         private const int InitialTextureCount = 64;
 
         private readonly List<int> _freeIds;
@@ -37,12 +40,20 @@ namespace OpenWheels.Veldrid
 
         private bool _disposed;
 
+        private Framebuffer _currentTarget;
+
+        /// <summary>
+        /// Create a new renderer.
+        /// </summary>
+        /// <param name="graphicsDevice">The <see cref="global::Veldrid.GraphicsDevice"/> to render with.</param>
+        /// <exception cref="ArgumentNullException">If <paramref name="graphicsDevice"/> is <code>null</code>.</exception>
         public VeldridRenderer(GraphicsDevice graphicsDevice)
         {
             if (graphicsDevice == null)
                 throw new ArgumentNullException(nameof(graphicsDevice));
 
-            _graphicsDevice = graphicsDevice;
+            GraphicsDevice = graphicsDevice;
+            _currentTarget = GraphicsDevice.SwapchainFramebuffer;
 
             _freeIds = new List<int>(InitialTextureCount);
             _freeIds.AddRange(Enumerable.Range(0, InitialTextureCount));
@@ -57,7 +68,7 @@ namespace OpenWheels.Veldrid
 
         private void CreateResources()
         {
-            var rf = _graphicsDevice.ResourceFactory;
+            var rf = GraphicsDevice.ResourceFactory;
 
             var vbDescription = new BufferDescription(
                 Batcher.InitialMaxVertices * Vertex.SizeInBytes,
@@ -97,13 +108,41 @@ namespace OpenWheels.Veldrid
             _wvpSet = rf.CreateResourceSet(new ResourceSetDescription(_wvpLayout, _wvpBuffer));
         }
 
+        /// <summary>
+        /// Set the render target.
+        /// </summary>
+        /// <param name="target">
+        ///   <see cref="Framebuffer"/> to render to. Uses <see cref="Veldrid.GraphicsDevice.SwapchainFramebuffer"/>
+        ///   of the
+        /// </param>
+        public void SetTarget(Framebuffer target)
+        {
+            if (target == null)
+                target = GraphicsDevice.SwapchainFramebuffer;
+
+            if (target != _currentTarget && !target.OutputDescription.Equals(_currentTarget.OutputDescription))
+            {
+                // TODO graphics pipelines
+                throw new NotImplementedException();
+            }
+            _currentTarget = target;
+        }
+
+        /// <summary>
+        /// Update the transformation matrix so coordinates match pixel coordinates on the
+        /// currently active <see cref="Framebuffer"/>. Call this after changing the render
+        /// target with <see cref="SetTarget"/> or when the active <see cref="Framebuffer"/> is resized.
+        /// </summary>
         public void UpdateWvp()
         {
-            var wvp = Matrix4x4.CreateOrthographicOffCenter(
-                0, _graphicsDevice.SwapchainFramebuffer.Width,
-                _graphicsDevice.SwapchainFramebuffer.Height, 0,
-                0, 1);
-            _graphicsDevice.UpdateBuffer(_wvpBuffer, 0, ref wvp);
+            Console.WriteLine($"Update Wvp: ({_currentTarget.Width}, {_currentTarget.Height})");
+            UpdateWvp((int) _currentTarget.Width, (int) _currentTarget.Height);
+        }
+
+        private void UpdateWvp(int width, int height)
+        {
+            var wvp = Matrix4x4.CreateOrthographicOffCenter(0, width, height, 0, 0, 1);
+            GraphicsDevice.UpdateBuffer(_wvpBuffer, 0, ref wvp);
         }
 
         private void Grow()
@@ -114,42 +153,76 @@ namespace OpenWheels.Veldrid
             Array.Resize(ref _textureResourceSets, _textureResourceSets.Length * 2);
         }
 
-        public string Register(string path, string name = null)
+        /// <summary>
+        /// Register a texture.
+        /// </summary>
+        /// <param name="path">Path to the texture.</param>
+        /// <param name="name">Name of the image. The filename is used when <code>null</code> is passed.</param>
+        /// <param name="sampler">
+        ///   Sampler to use. Uses <see cref="global::Veldrid.GraphicsDevice.LinearSampler"/>
+        ///   when <code>null</code>.
+        /// </param>
+        /// <returns>The name of the texture.</returns>
+        /// <exception cref="ArgumentNullException">If <paramref name="path"/> is <code>null</code>.</exception>
+        /// <exception cref="ArgumentException">If the file does not exist.</exception>
+        public string Register(string path, string name = null, Sampler sampler = null)
         {
+            if (path == null)
+                throw new ArgumentNullException(nameof(path));
             if (!File.Exists(path))
                 throw new ArgumentException($"File does not exist, '{path}'.", nameof(path));
 
             var key = name ?? Path.GetFileNameWithoutExtension(path);
 
             var ist = new ImageSharpTexture(path);
-            var tex = ist.CreateDeviceTexture(_graphicsDevice, _graphicsDevice.ResourceFactory);
+            var tex = ist.CreateDeviceTexture(GraphicsDevice, GraphicsDevice.ResourceFactory);
 
-            return Register(tex, key);
+            return Register(tex, key, sampler);
         }
 
-        public string Register(Texture texture, string key)
+        /// <summary>
+        /// Register a texture-sampler combination.
+        /// </summary>
+        /// <param name="texture">The texture to register.</param>
+        /// <param name="name">Name of the texture.</param>
+        /// <param name="sampler">
+        ///   Sampler to use. Uses <see cref="global::Veldrid.GraphicsDevice.LinearSampler"/>
+        ///   when <code>null</code>.
+        /// </param>
+        /// <returns><paramref name="name"/>.</returns>
+        /// <exception cref="ArgumentNullException">
+        ///   If <paramref name="texture"/> or <paramref name="name"/> is <code>null</code>.
+        /// </exception>
+        /// <exception cref="ArgumentException">If a texture with the same name is already registered.</exception>
+        public string Register(Texture texture, string name, Sampler sampler = null)
         {
-            if (key == null)
-                throw new ArgumentNullException(nameof(key));
-            if (_textureIds.ContainsKey(key))
-                throw new ArgumentException($"Texture with name '{key}' already registered.", nameof(key));
+            if (texture == null)
+                throw new ArgumentNullException(nameof(texture));
+            if (name == null)
+                throw new ArgumentNullException(nameof(name));
+            if (_textureIds.ContainsKey(name))
+                throw new ArgumentException($"Texture with name '{name}' already registered.", nameof(name));
 
             if (_freeIds.Count == 0)
                 Grow();
 
             var id = _freeIds[0];
             _freeIds.RemoveAt(0);
-            _textureIds[key] = id;
+            _textureIds[name] = id;
             _textures[id] = texture;
-            _textureViews[id] = _graphicsDevice.ResourceFactory.CreateTextureView(texture);
-            _textureResourceSets[id] = _graphicsDevice.ResourceFactory.CreateResourceSet(new ResourceSetDescription(
+            _textureViews[id] = GraphicsDevice.ResourceFactory.CreateTextureView(texture);
+            _textureResourceSets[id] = GraphicsDevice.ResourceFactory.CreateResourceSet(new ResourceSetDescription(
                 _textureLayout,
                 _textureViews[id],
-                _graphicsDevice.PointSampler));
+                sampler ?? GraphicsDevice.LinearSampler));
 
-            return key;
+            return name;
         }
 
+        /// <summary>
+        /// Release a registered texture. If no texture with the given name is registered, nothing happens.
+        /// </summary>
+        /// <param name="name">The name of the texture to release.</param>
         public void Release(string name)
         {
             if (_textureIds.TryGetValue(name, out var id))
@@ -165,48 +238,56 @@ namespace OpenWheels.Veldrid
             }
         }
 
+        /// <summary>
+        /// Get the identifier of the texture with the given name.
+        /// </summary>
+        /// <param name="name">Name of the texture.</param>
+        /// <returns>Identifier of the texture.</returns>
         public int GetTexture(string name)
         {
             return _textureIds[name];
         }
 
+        /// <inheritdoc />
         public Point2 GetTextureSize(int texture)
         {
             var t = _textures[texture];
             return new Point2((int) t.Width, (int) t.Height);
         }
 
+        /// <inheritdoc />
         public Vector2 GetTextSize(string text, int font)
         {
             throw new System.NotImplementedException();
         }
 
+        /// <inheritdoc />
         public Rectangle GetViewport()
         {
-            return new Rectangle(0, 0, (int) _graphicsDevice.SwapchainFramebuffer.Width,
-                (int) _graphicsDevice.SwapchainFramebuffer.Height);
+            return new Rectangle(0, 0, (int) _currentTarget.Width, (int) _currentTarget.Height);
         }
 
+        /// <inheritdoc />
         public void BeginRender(Vertex[] vertexBuffer, int[] indexBuffer, int vertexCount, int indexCount)
         {
             if (_disposed)
                 throw new ObjectDisposedException("Can't use renderer after it has been disposed.");
 
-            _graphicsDevice.UpdateBuffer(_vertexBuffer, 0, ref vertexBuffer[0],
+            GraphicsDevice.UpdateBuffer(_vertexBuffer, 0, ref vertexBuffer[0],
                 (uint) (vertexCount * Vertex.SizeInBytes));
-            _graphicsDevice.UpdateBuffer(_indexBuffer, 0, ref indexBuffer[0], (uint) (indexCount * sizeof(int)));
+            GraphicsDevice.UpdateBuffer(_indexBuffer, 0, ref indexBuffer[0], (uint) (indexCount * sizeof(int)));
 
             // Begin() must be called before commands can be issued.
             _commandList.Begin();
 
-            // We want to render directly to the output window.
-            _commandList.SetFramebuffer(_graphicsDevice.SwapchainFramebuffer);
+            _commandList.SetFramebuffer(_currentTarget);
             _commandList.ClearColorTarget(0, RgbaFloat.CornflowerBlue);
 
             _commandList.SetVertexBuffer(0, _vertexBuffer);
             _commandList.SetIndexBuffer(_indexBuffer, IndexFormat.UInt32);
         }
 
+        /// <inheritdoc />
         public void DrawBatch(GraphicsState state, int startIndex, int indexCount, object batchUserData)
         {
             // TODO sampler state
@@ -228,11 +309,12 @@ namespace OpenWheels.Veldrid
                 instanceStart: 0);
         }
 
+        /// <inheritdoc />
         public void EndRender()
         {
             // End() must be called before commands can be submitted for execution.
             _commandList.End();
-            _graphicsDevice.SubmitCommands(_commandList);
+            GraphicsDevice.SubmitCommands(_commandList);
         }
 
         private Pipeline AddPipeline(GraphicsState state)
@@ -248,8 +330,8 @@ namespace OpenWheels.Veldrid
             gpd.PrimitiveTopology = PrimitiveTopology.TriangleList;
             gpd.ShaderSet = _shaderSet;
             gpd.ResourceLayouts = _resourceLayouts;
-            gpd.Outputs = _graphicsDevice.SwapchainFramebuffer.OutputDescription;
-            var pipeline = _graphicsDevice.ResourceFactory.CreateGraphicsPipeline(gpd);
+            gpd.Outputs = _currentTarget.OutputDescription;
+            var pipeline = GraphicsDevice.ResourceFactory.CreateGraphicsPipeline(gpd);
             _pipelines[state] = pipeline;
             return pipeline;
         }
@@ -267,7 +349,7 @@ namespace OpenWheels.Veldrid
             _commandList.Dispose();
             _vertexBuffer.Dispose();
             _indexBuffer.Dispose();
-            _graphicsDevice.Dispose();
+            GraphicsDevice.Dispose();
 
             _disposed = true;
         }
