@@ -22,6 +22,11 @@ namespace OpenWheels.Veldrid
         private Texture[] _textures;
         private TextureView[] _textureViews;
         private ResourceSet[] _textureResourceSets;
+        private Lazy<ResourceSet>[] _samplerResourceSets;
+
+        private Sampler _linearClamp;
+        private Sampler _pointClamp;
+        private Sampler _anisotropicClamp;
 
         private CommandList _commandList;
         private DeviceBuffer _vertexBuffer;
@@ -32,6 +37,7 @@ namespace OpenWheels.Veldrid
 
         private ResourceLayout _wvpLayout;
         private ResourceLayout _textureLayout;
+        private ResourceLayout _samplerLayout;
         private ResourceLayout[] _resourceLayouts;
         private ResourceSet _wvpSet;
         private DeviceBuffer _wvpBuffer;
@@ -97,10 +103,13 @@ namespace OpenWheels.Veldrid
             _wvpLayout = rf.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("Wvp", ResourceKind.UniformBuffer, ShaderStages.Vertex)));
             _textureLayout = rf.CreateResourceLayout(new ResourceLayoutDescription(
-                new ResourceLayoutElementDescription("Input", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
+                new ResourceLayoutElementDescription("Input", ResourceKind.TextureReadOnly, ShaderStages.Fragment)));
+            _samplerLayout = rf.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("Sampler", ResourceKind.Sampler, ShaderStages.Fragment)));
 
-            _resourceLayouts = new[] {_wvpLayout, _textureLayout};
+            CreateSamplerResourceSets();
+
+            _resourceLayouts = new[] {_wvpLayout, _textureLayout, _samplerLayout};
 
             _wvpBuffer = rf.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer));
             UpdateWvp();
@@ -108,11 +117,73 @@ namespace OpenWheels.Veldrid
             _wvpSet = rf.CreateResourceSet(new ResourceSetDescription(_wvpLayout, _wvpBuffer));
         }
 
+        private void CreateSamplerResourceSets()
+        {
+            _samplerResourceSets = new Lazy<ResourceSet>[6];
+
+            // Linear Clamp
+            _samplerResourceSets[0] = new Lazy<ResourceSet>(() =>
+            {
+                var linearClampDescr = SamplerDescription.Linear;
+                linearClampDescr.AddressModeU = SamplerAddressMode.Clamp;
+                linearClampDescr.AddressModeV = SamplerAddressMode.Clamp;
+                linearClampDescr.AddressModeW = SamplerAddressMode.Clamp;
+                _linearClamp = GraphicsDevice.ResourceFactory.CreateSampler(linearClampDescr);
+                var resourceSetDescr = new ResourceSetDescription(_samplerLayout, _linearClamp);
+                return GraphicsDevice.ResourceFactory.CreateResourceSet(ref resourceSetDescr);
+            }, false);
+
+            // Linear Wrap
+            _samplerResourceSets[1] = new Lazy<ResourceSet>(() =>
+            {
+                var resourceSetDescr = new ResourceSetDescription(_samplerLayout, GraphicsDevice.LinearSampler);
+                return GraphicsDevice.ResourceFactory.CreateResourceSet(ref resourceSetDescr);
+            }, false);
+
+            // Point Clamp
+            _samplerResourceSets[2] = new Lazy<ResourceSet>(() =>
+            {
+                var pointClampDescr = SamplerDescription.Point;
+                pointClampDescr.AddressModeU = SamplerAddressMode.Clamp;
+                pointClampDescr.AddressModeV = SamplerAddressMode.Clamp;
+                pointClampDescr.AddressModeW = SamplerAddressMode.Clamp;
+                _pointClamp = GraphicsDevice.ResourceFactory.CreateSampler(pointClampDescr);
+                var resourceSetDescr = new ResourceSetDescription(_samplerLayout, _pointClamp);
+                return GraphicsDevice.ResourceFactory.CreateResourceSet(ref resourceSetDescr);
+            }, false);
+
+            // Point Wrap
+            _samplerResourceSets[3] = new Lazy<ResourceSet>(() =>
+            {
+                var resourceSetDescr = new ResourceSetDescription(_samplerLayout, GraphicsDevice.PointSampler);
+                return GraphicsDevice.ResourceFactory.CreateResourceSet(ref resourceSetDescr);
+            }, false);
+
+            // Anisotropic Clamp
+            _samplerResourceSets[2] = new Lazy<ResourceSet>(() =>
+            {
+                var anisoClampDescr = SamplerDescription.Aniso4x;
+                anisoClampDescr.AddressModeU = SamplerAddressMode.Clamp;
+                anisoClampDescr.AddressModeV = SamplerAddressMode.Clamp;
+                anisoClampDescr.AddressModeW = SamplerAddressMode.Clamp;
+                _anisotropicClamp = GraphicsDevice.ResourceFactory.CreateSampler(anisoClampDescr);
+                var resourceSetDescr = new ResourceSetDescription(_samplerLayout, _anisotropicClamp);
+                return GraphicsDevice.ResourceFactory.CreateResourceSet(ref resourceSetDescr);
+            }, false);
+
+            // Anisotropic Wrap
+            _samplerResourceSets[3] = new Lazy<ResourceSet>(() =>
+            {
+                var resourceSetDescr = new ResourceSetDescription(_samplerLayout, GraphicsDevice.Aniso4xSampler);
+                return GraphicsDevice.ResourceFactory.CreateResourceSet(ref resourceSetDescr);
+            }, false);
+        }
+
         /// <summary>
         /// Set the render target.
         /// </summary>
         /// <param name="target">
-        ///   <see cref="Framebuffer"/> to render to. Uses <see cref="Veldrid.GraphicsDevice.SwapchainFramebuffer"/>
+        ///   <see cref="Framebuffer"/> to render to. Uses <see cref="global::Veldrid.GraphicsDevice.SwapchainFramebuffer"/>
         ///   of the
         /// </param>
         public void SetTarget(Framebuffer target)
@@ -158,14 +229,10 @@ namespace OpenWheels.Veldrid
         /// </summary>
         /// <param name="path">Path to the texture.</param>
         /// <param name="name">Name of the image. The filename is used when <code>null</code> is passed.</param>
-        /// <param name="sampler">
-        ///   Sampler to use. Uses <see cref="global::Veldrid.GraphicsDevice.LinearSampler"/>
-        ///   when <code>null</code>.
-        /// </param>
         /// <returns>The name of the texture.</returns>
         /// <exception cref="ArgumentNullException">If <paramref name="path"/> is <code>null</code>.</exception>
         /// <exception cref="ArgumentException">If the file does not exist.</exception>
-        public string Register(string path, string name = null, Sampler sampler = null)
+        public string Register(string path, string name = null)
         {
             if (path == null)
                 throw new ArgumentNullException(nameof(path));
@@ -177,7 +244,7 @@ namespace OpenWheels.Veldrid
             var ist = new ImageSharpTexture(path);
             var tex = ist.CreateDeviceTexture(GraphicsDevice, GraphicsDevice.ResourceFactory);
 
-            return Register(tex, key, sampler);
+            return Register(tex, key);
         }
 
         /// <summary>
@@ -185,16 +252,12 @@ namespace OpenWheels.Veldrid
         /// </summary>
         /// <param name="texture">The texture to register.</param>
         /// <param name="name">Name of the texture.</param>
-        /// <param name="sampler">
-        ///   Sampler to use. Uses <see cref="global::Veldrid.GraphicsDevice.LinearSampler"/>
-        ///   when <code>null</code>.
-        /// </param>
         /// <returns><paramref name="name"/>.</returns>
         /// <exception cref="ArgumentNullException">
         ///   If <paramref name="texture"/> or <paramref name="name"/> is <code>null</code>.
         /// </exception>
         /// <exception cref="ArgumentException">If a texture with the same name is already registered.</exception>
-        public string Register(Texture texture, string name, Sampler sampler = null)
+        public string Register(Texture texture, string name)
         {
             if (texture == null)
                 throw new ArgumentNullException(nameof(texture));
@@ -213,8 +276,7 @@ namespace OpenWheels.Veldrid
             _textureViews[id] = GraphicsDevice.ResourceFactory.CreateTextureView(texture);
             _textureResourceSets[id] = GraphicsDevice.ResourceFactory.CreateResourceSet(new ResourceSetDescription(
                 _textureLayout,
-                _textureViews[id],
-                sampler ?? GraphicsDevice.LinearSampler));
+                _textureViews[id]));
 
             return name;
         }
@@ -290,15 +352,16 @@ namespace OpenWheels.Veldrid
         /// <inheritdoc />
         public void DrawBatch(GraphicsState state, int startIndex, int indexCount, object batchUserData)
         {
-            // TODO sampler state
-
             if (!_pipelines.TryGetValue(state, out var pipeline))
                 pipeline = AddPipeline(state);
 
             _commandList.SetPipeline(pipeline);
 
+            var sampler = GetSamplerResourceSet(state.SamplerState);
+
             _commandList.SetGraphicsResourceSet(0, _wvpSet);
             _commandList.SetGraphicsResourceSet(1, _textureResourceSets[state.Texture]);
+            _commandList.SetGraphicsResourceSet(2, sampler);
 
             // Issue a Draw command for a single instance with 4 indices.
             _commandList.DrawIndexed(
@@ -307,6 +370,11 @@ namespace OpenWheels.Veldrid
                 indexStart: 0,
                 vertexOffset: 0,
                 instanceStart: 0);
+        }
+
+        private ResourceSet GetSamplerResourceSet(SamplerState samplerState)
+        {
+            return _samplerResourceSets[(int) samplerState].Value;
         }
 
         /// <inheritdoc />
@@ -343,7 +411,29 @@ namespace OpenWheels.Veldrid
 
             foreach (var pipeline in _pipelines.Values)
                 pipeline.Dispose();
+
+            foreach (var t in _textureResourceSets)
+                t.Dispose();
+            foreach (var t in _textureViews)
+                t.Dispose();
             _textureLayout.Dispose();
+
+            _wvpSet.Dispose();
+            _wvpBuffer.Dispose();
+            _wvpLayout.Dispose();
+
+            foreach (var s in _samplerResourceSets)
+            {
+                if (s.IsValueCreated)
+                    s.Value.Dispose();
+            }
+
+            _linearClamp?.Dispose();
+            _pointClamp?.Dispose();
+            _anisotropicClamp?.Dispose();
+
+            _samplerLayout.Dispose();
+
             _vertexShader.Dispose();
             _fragmentShader.Dispose();
             _commandList.Dispose();
