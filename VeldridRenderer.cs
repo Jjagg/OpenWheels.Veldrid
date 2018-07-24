@@ -52,7 +52,7 @@ namespace OpenWheels.Veldrid
         /// Create a new renderer.
         /// </summary>
         /// <param name="graphicsDevice">The <see cref="global::Veldrid.GraphicsDevice"/> to render with.</param>
-        /// <exception cref="ArgumentNullException">If <paramref name="graphicsDevice"/> is <code>null</code>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="graphicsDevice"/> is <c>null</c>.</exception>
         public VeldridRenderer(GraphicsDevice graphicsDevice)
         {
             if (graphicsDevice == null)
@@ -228,9 +228,9 @@ namespace OpenWheels.Veldrid
         /// Register a texture.
         /// </summary>
         /// <param name="path">Path to the texture.</param>
-        /// <param name="name">Name of the image. The filename is used when <code>null</code> is passed.</param>
+        /// <param name="name">Name of the image. The filename is used when <c>null</c> is passed.</param>
         /// <returns>The name of the texture.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="path"/> is <code>null</code>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="path"/> is <c>null</c>.</exception>
         /// <exception cref="ArgumentException">If the file does not exist.</exception>
         public string Register(string path, string name = null)
         {
@@ -248,13 +248,13 @@ namespace OpenWheels.Veldrid
         }
 
         /// <summary>
-        /// Register a texture-sampler combination.
+        /// Register a texture.
         /// </summary>
         /// <param name="texture">The texture to register.</param>
         /// <param name="name">Name of the texture.</param>
         /// <returns><paramref name="name"/>.</returns>
         /// <exception cref="ArgumentNullException">
-        ///   If <paramref name="texture"/> or <paramref name="name"/> is <code>null</code>.
+        ///   If <paramref name="texture"/> or <paramref name="name"/> is <c>null</c>.
         /// </exception>
         /// <exception cref="ArgumentException">If a texture with the same name is already registered.</exception>
         public string Register(Texture texture, string name)
@@ -318,15 +318,26 @@ namespace OpenWheels.Veldrid
         }
 
         /// <inheritdoc />
-        public Vector2 GetTextSize(string text, int font)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        /// <inheritdoc />
         public Rectangle GetViewport()
         {
             return new Rectangle(0, 0, (int) _currentTarget.Width, (int) _currentTarget.Height);
+        }
+
+        /// <summary>
+        /// Clear the background.
+        /// </summary>
+        /// <param name="color">Color to set the background to.</param>
+        public void Clear(Color color)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException("Can't use renderer after it has been disposed.");
+
+            _commandList.Begin();
+
+            _commandList.SetFramebuffer(_currentTarget);
+            _commandList.ClearColorTarget(0, RgbaFloat.CornflowerBlue);
+
+            _commandList.End();
         }
 
         /// <inheritdoc />
@@ -343,7 +354,6 @@ namespace OpenWheels.Veldrid
             _commandList.Begin();
 
             _commandList.SetFramebuffer(_currentTarget);
-            _commandList.ClearColorTarget(0, RgbaFloat.CornflowerBlue);
 
             _commandList.SetVertexBuffer(0, _vertexBuffer);
             _commandList.SetIndexBuffer(_indexBuffer, IndexFormat.UInt32);
