@@ -4,16 +4,24 @@
     <ShaderContentIncludePath>Shaders</ShaderContentIncludePath>
     <ShaderOutputPath>$(BaseIntermediateOutputPath)</ShaderOutputPath>
   </PropertyGroup>
+
+  <PropertyGroup>
+    <Description>Renderer implementation for OpenWheels.</Description>
+    <PackageTags>2D Graphics Rendering</PackageTags>
+    <Authors>Jesse Gielen</Authors>
+    <RepositoryUrl>https://github.com/Jjagg/OpenWheels.Veldrid</RepositoryUrl>
+    <PackageLicenseUrl>https://github.com/Jjagg/OpenWheels.Veldrid/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+  </PropertyGroup>
+
   <ItemGroup>
+    <PackageReference Include="OpenWheels.Rendering" Version="0.1.0-g4afe602b20" />
     <PackageReference Include="Veldrid" Version="4.3.3" />
     <PackageReference Include="Veldrid.ImageSharp" Version="4.2.0" />
     <PackageReference Include="ShaderGen.Primitives" Version="1.2.0-g6c2ba50db6" />
     <PackageReference Include="ShaderGen.Build" PrivateAssets="All" Version="1.2.0-g6c2ba50db6" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\OpenWheels\src\OpenWheels.Rendering\OpenWheels.Rendering.csproj" />
-    <ProjectReference Include="..\..\OpenWheels\src\OpenWheels\OpenWheels.csproj" />
-  </ItemGroup>
+
   <Target Name="IncludeGeneratedShaderEmbeddedResource" AfterTargets="AssignTargetPaths" Condition="'$(ShaderContentIncludePath)' != ''">
     <ItemGroup>
       <EmbeddedResource Include="@(GeneratedShader)">
@@ -21,4 +29,11 @@
       </EmbeddedResource>
     </ItemGroup>
   </Target>
+
+  <ItemGroup>
+    <PackageReference Include="Nerdbank.GitVersioning">
+      <Version>2.1.65</Version>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
 </Project>
