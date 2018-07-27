@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using OpenWheels.Rendering;
+using SixLabors.ImageSharp.PixelFormats;
 using Veldrid;
 using Veldrid.ImageSharp;
 
@@ -180,16 +181,23 @@ namespace OpenWheels.Veldrid
         }
 
         /// <summary>
+        /// Set the render target to the swapchain framebuffer of the <see cref="GraphicsDevice"/>.
+        /// </summary>
+        /// <seealso cref="global::Veldrid.GraphicsDevice.SwapchainFramebuffer"/>
+        public void SetTarget()
+        {
+            SetTarget(GraphicsDevice.SwapchainFramebuffer);
+        }
+
+        /// <summary>
         /// Set the render target.
         /// </summary>
-        /// <param name="target">
-        ///   <see cref="Framebuffer"/> to render to. Uses <see cref="global::Veldrid.GraphicsDevice.SwapchainFramebuffer"/>
-        ///   of the
-        /// </param>
+        /// <param name="target">The framebuffer to render to.</param>
+        /// <exception cref="ArgumentNullException">If <paramref name="target"/> is <c>null</c>.</exception>
         public void SetTarget(Framebuffer target)
         {
             if (target == null)
-                target = GraphicsDevice.SwapchainFramebuffer;
+                throw new ArgumentNullException(nameof(target));
 
             if (target != _currentTarget && !target.OutputDescription.Equals(_currentTarget.OutputDescription))
             {
@@ -229,10 +237,10 @@ namespace OpenWheels.Veldrid
         /// </summary>
         /// <param name="path">Path to the texture.</param>
         /// <param name="name">Name of the image. The filename is used when <c>null</c> is passed.</param>
-        /// <returns>The name of the texture.</returns>
+        /// <returns>The identifier of the texture.</returns>
         /// <exception cref="ArgumentNullException">If <paramref name="path"/> is <c>null</c>.</exception>
         /// <exception cref="ArgumentException">If the file does not exist.</exception>
-        public string Register(string path, string name = null)
+        public int Register(string path, string name = null)
         {
             if (path == null)
                 throw new ArgumentNullException(nameof(path));
@@ -252,12 +260,12 @@ namespace OpenWheels.Veldrid
         /// </summary>
         /// <param name="texture">The texture to register.</param>
         /// <param name="name">Name of the texture.</param>
-        /// <returns><paramref name="name"/>.</returns>
+        /// <returns>The identifier of the texture.</returns>
         /// <exception cref="ArgumentNullException">
         ///   If <paramref name="texture"/> or <paramref name="name"/> is <c>null</c>.
         /// </exception>
         /// <exception cref="ArgumentException">If a texture with the same name is already registered.</exception>
-        public string Register(Texture texture, string name)
+        public int Register(Texture texture, string name)
         {
             if (texture == null)
                 throw new ArgumentNullException(nameof(texture));
@@ -278,11 +286,12 @@ namespace OpenWheels.Veldrid
                 _textureLayout,
                 _textureViews[id]));
 
-            return name;
+            return id;
         }
 
         /// <summary>
         /// Release a registered texture. If no texture with the given name is registered, nothing happens.
+        /// The texture itself is not disposed by this method.
         /// </summary>
         /// <param name="name">The name of the texture to release.</param>
         public void Release(string name)
@@ -290,7 +299,6 @@ namespace OpenWheels.Veldrid
             if (_textureIds.TryGetValue(name, out var id))
             {
                 _textureIds.Remove(name);
-                _textures[id].Dispose();
                 _textures[id] = null;
                 _textureViews[id].Dispose();
                 _textureViews[id] = null;
@@ -335,9 +343,11 @@ namespace OpenWheels.Veldrid
             _commandList.Begin();
 
             _commandList.SetFramebuffer(_currentTarget);
-            _commandList.ClearColorTarget(0, RgbaFloat.CornflowerBlue);
-
+            var c = new RgbaFloat(color.R / 255f, color.G / 255f, color.B / 255f, color.A / 255f);
+            _commandList.ClearColorTarget(0, c);
             _commandList.End();
+
+            GraphicsDevice.SubmitCommands(_commandList);
         }
 
         /// <inheritdoc />
@@ -346,8 +356,7 @@ namespace OpenWheels.Veldrid
             if (_disposed)
                 throw new ObjectDisposedException("Can't use renderer after it has been disposed.");
 
-            GraphicsDevice.UpdateBuffer(_vertexBuffer, 0, ref vertexBuffer[0],
-                (uint) (vertexCount * Vertex.SizeInBytes));
+            GraphicsDevice.UpdateBuffer(_vertexBuffer, 0, ref vertexBuffer[0], (uint) (vertexCount * Vertex.SizeInBytes));
             GraphicsDevice.UpdateBuffer(_indexBuffer, 0, ref indexBuffer[0], (uint) (indexCount * sizeof(int)));
 
             // Begin() must be called before commands can be issued.
@@ -377,7 +386,7 @@ namespace OpenWheels.Veldrid
             _commandList.DrawIndexed(
                 indexCount: (uint) indexCount,
                 instanceCount: 1,
-                indexStart: 0,
+                indexStart: (uint) startIndex,
                 vertexOffset: 0,
                 instanceStart: 0);
         }
