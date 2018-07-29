@@ -308,21 +308,17 @@ namespace OpenWheels.Veldrid
             }
         }
 
-        /// <summary>
-        /// Get the identifier of the texture with the given name.
-        /// </summary>
-        /// <param name="name">Name of the texture.</param>
-        /// <returns>Identifier of the texture.</returns>
-        public int GetTexture(string name)
+        /// <inheritdoc />
+        public int RegisterTexture(Span<Color> pixels, int width, int height)
         {
-            return _textureIds[name];
+            throw new NotImplementedException();
         }
 
         /// <inheritdoc />
-        public Point2 GetTextureSize(int texture)
+        public Size GetTextureSize(int texture)
         {
             var t = _textures[texture];
-            return new Point2((int) t.Width, (int) t.Height);
+            return new Size((int) t.Width, (int) t.Height);
         }
 
         /// <inheritdoc />
@@ -432,9 +428,9 @@ namespace OpenWheels.Veldrid
                 pipeline.Dispose();
 
             foreach (var t in _textureResourceSets)
-                t.Dispose();
+                t?.Dispose();
             foreach (var t in _textureViews)
-                t.Dispose();
+                t?.Dispose();
             _textureLayout.Dispose();
 
             _wvpSet.Dispose();
