@@ -1,6 +1,5 @@
 language: csharp
-dotnet: 2.1.2
+dotnet: 2.1.300
 mono: none
 script: dotnet pack -c Release
 after_success: dotnet nuget push bin/Release/*.nupkg -s https://www.myget.org/F/jjagg -k $MYGET_JJAGG_API_KEY 
-
