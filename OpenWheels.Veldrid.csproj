@@ -3,6 +3,7 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <ShaderContentIncludePath>Shaders</ShaderContentIncludePath>
     <ShaderOutputPath>$(BaseIntermediateOutputPath)</ShaderOutputPath>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <PropertyGroup>

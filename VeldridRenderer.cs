@@ -3,8 +3,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.InteropServices;
+
 using OpenWheels.Rendering;
+
 using SixLabors.ImageSharp.PixelFormats;
+
 using Veldrid;
 using Veldrid.ImageSharp;
 
@@ -19,7 +23,6 @@ namespace OpenWheels.Veldrid
         private const int InitialTextureCount = 64;
 
         private readonly List<int> _freeIds;
-        private readonly Dictionary<string, int> _textureIds;
         private Texture[] _textures;
         private TextureView[] _textureViews;
         private ResourceSet[] _textureResourceSets;
@@ -64,7 +67,6 @@ namespace OpenWheels.Veldrid
 
             _freeIds = new List<int>(InitialTextureCount);
             _freeIds.AddRange(Enumerable.Range(0, InitialTextureCount));
-            _textureIds = new Dictionary<string, int>(InitialTextureCount);
             _textures = new Texture[InitialTextureCount];
             _textureViews = new TextureView[InitialTextureCount];
             _textureResourceSets = new ResourceSet[InitialTextureCount];
@@ -161,7 +163,7 @@ namespace OpenWheels.Veldrid
             }, false);
 
             // Anisotropic Clamp
-            _samplerResourceSets[2] = new Lazy<ResourceSet>(() =>
+            _samplerResourceSets[4] = new Lazy<ResourceSet>(() =>
             {
                 var anisoClampDescr = SamplerDescription.Aniso4x;
                 anisoClampDescr.AddressModeU = SamplerAddressMode.Clamp;
@@ -173,7 +175,7 @@ namespace OpenWheels.Veldrid
             }, false);
 
             // Anisotropic Wrap
-            _samplerResourceSets[3] = new Lazy<ResourceSet>(() =>
+            _samplerResourceSets[5] = new Lazy<ResourceSet>(() =>
             {
                 var resourceSetDescr = new ResourceSetDescription(_samplerLayout, GraphicsDevice.Aniso4xSampler);
                 return GraphicsDevice.ResourceFactory.CreateResourceSet(ref resourceSetDescr);
@@ -235,51 +237,19 @@ namespace OpenWheels.Veldrid
         /// <summary>
         /// Register a texture.
         /// </summary>
-        /// <param name="path">Path to the texture.</param>
-        /// <param name="name">Name of the image. The filename is used when <c>null</c> is passed.</param>
-        /// <returns>The identifier of the texture.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="path"/> is <c>null</c>.</exception>
-        /// <exception cref="ArgumentException">If the file does not exist.</exception>
-        public int Register(string path, string name = null)
-        {
-            if (path == null)
-                throw new ArgumentNullException(nameof(path));
-            if (!File.Exists(path))
-                throw new ArgumentException($"File does not exist, '{path}'.", nameof(path));
-
-            var key = name ?? Path.GetFileNameWithoutExtension(path);
-
-            var ist = new ImageSharpTexture(path);
-            var tex = ist.CreateDeviceTexture(GraphicsDevice, GraphicsDevice.ResourceFactory);
-
-            return Register(tex, key);
-        }
-
-        /// <summary>
-        /// Register a texture.
-        /// </summary>
         /// <param name="texture">The texture to register.</param>
-        /// <param name="name">Name of the texture.</param>
         /// <returns>The identifier of the texture.</returns>
-        /// <exception cref="ArgumentNullException">
-        ///   If <paramref name="texture"/> or <paramref name="name"/> is <c>null</c>.
-        /// </exception>
-        /// <exception cref="ArgumentException">If a texture with the same name is already registered.</exception>
-        public int Register(Texture texture, string name)
+        /// <exception cref="ArgumentNullException">If <paramref name="texture"/> is <c>null</c>.</exception>
+        public int Register(Texture texture)
         {
             if (texture == null)
                 throw new ArgumentNullException(nameof(texture));
-            if (name == null)
-                throw new ArgumentNullException(nameof(name));
-            if (_textureIds.ContainsKey(name))
-                throw new ArgumentException($"Texture with name '{name}' already registered.", nameof(name));
 
             if (_freeIds.Count == 0)
                 Grow();
 
             var id = _freeIds[0];
             _freeIds.RemoveAt(0);
-            _textureIds[name] = id;
             _textures[id] = texture;
             _textureViews[id] = GraphicsDevice.ResourceFactory.CreateTextureView(texture);
             _textureResourceSets[id] = GraphicsDevice.ResourceFactory.CreateResourceSet(new ResourceSetDescription(
@@ -293,25 +263,59 @@ namespace OpenWheels.Veldrid
         /// Release a registered texture. If no texture with the given name is registered, nothing happens.
         /// The texture itself is not disposed by this method.
         /// </summary>
-        /// <param name="name">The name of the texture to release.</param>
-        public void Release(string name)
+        /// <param name="id">The id of the texture to release.</param>
+        public void Release(int id)
         {
-            if (_textureIds.TryGetValue(name, out var id))
-            {
-                _textureIds.Remove(name);
-                _textures[id] = null;
-                _textureViews[id].Dispose();
-                _textureViews[id] = null;
-                _textureResourceSets[id].Dispose();
-                _textureResourceSets[id] = null;
-                _freeIds.Insert(~_freeIds.BinarySearch(id), id);
-            }
+            if (_textures[id] == null)
+                return;
+
+            _textures[id] = null;
+            _textureViews[id].Dispose();
+            _textureViews[id] = null;
+            _textureResourceSets[id].Dispose();
+            _textureResourceSets[id] = null;
+            _freeIds.Insert(~_freeIds.BinarySearch(id), id);
         }
 
         /// <inheritdoc />
-        public int RegisterTexture(Span<Color> pixels, int width, int height)
+        public unsafe int RegisterTexture(Span<Color> pixels, int width, int height)
         {
-            throw new NotImplementedException();
+            var factory = GraphicsDevice.ResourceFactory;
+            Texture staging = factory.CreateTexture(
+                TextureDescription.Texture2D((uint) width, (uint) height, 1, 1, PixelFormat.R8_G8_B8_A8_UNorm, TextureUsage.Staging));
+
+            Texture ret = factory.CreateTexture(
+                TextureDescription.Texture2D((uint) width, (uint) height, 1, 1, PixelFormat.R8_G8_B8_A8_UNorm, TextureUsage.Sampled));
+
+            CommandList cl = factory.CreateCommandList();
+            cl.Begin();
+
+            MappedResource map = GraphicsDevice.Map(staging, MapMode.Write, 0);
+            if (width == map.RowPitch / 4)
+            {
+                var dst = new Span<Color>(map.Data.ToPointer(), width * height);
+                pixels.CopyTo(dst);
+            }
+            else
+            {
+                for (var y = 0; y < height; y++)
+                {
+                    var dst = new Span<Color>(IntPtr.Add(map.Data, y * (int) map.RowPitch).ToPointer(), width);
+                    var src = pixels.Slice(y * width, width);
+                    src.CopyTo(dst);
+                }
+            }
+
+            GraphicsDevice.Unmap(staging);
+
+            cl.CopyTexture(staging, ret);
+            cl.End();
+
+            GraphicsDevice.SubmitCommands(cl);
+            GraphicsDevice.DisposeWhenIdle(staging);
+            GraphicsDevice.DisposeWhenIdle(cl);
+
+            return Register(ret);
         }
 
         /// <inheritdoc />
@@ -454,7 +458,6 @@ namespace OpenWheels.Veldrid
             _commandList.Dispose();
             _vertexBuffer.Dispose();
             _indexBuffer.Dispose();
-            GraphicsDevice.Dispose();
 
             _disposed = true;
         }
@@ -472,12 +475,15 @@ namespace OpenWheels.Veldrid
 
         public static byte[] ReadEmbeddedAssetBytes(string name)
         {
+            Console.WriteLine("Reading embedded asset.");
             using (Stream stream = OpenEmbeddedAssetStream(name, typeof(VeldridHelper)))
             {
+                Console.WriteLine("Opened embedded asset stream.");
                 byte[] bytes = new byte[stream.Length];
                 using (MemoryStream ms = new MemoryStream(bytes))
                 {
                     stream.CopyTo(ms);
+                    Console.WriteLine("Copied to memory stream.");
                     return bytes;
                 }
             }
