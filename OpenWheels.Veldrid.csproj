@@ -24,7 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="$(OutputPath)Shaders/SpriteShader*">
+    <EmbeddedResource Include="generated/SpriteShader*">
       <LogicalName>%(FileName)%(Extension)</LogicalName>
     </EmbeddedResource>
   </ItemGroup>

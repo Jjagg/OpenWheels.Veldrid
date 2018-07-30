@@ -216,7 +216,6 @@ namespace OpenWheels.Veldrid
         /// </summary>
         public void UpdateWvp()
         {
-            Console.WriteLine($"Update Wvp: ({_currentTarget.Width}, {_currentTarget.Height})");
             UpdateWvp((int) _currentTarget.Width, (int) _currentTarget.Height);
         }
 
@@ -470,7 +469,6 @@ namespace OpenWheels.Veldrid
         public static Shader LoadShader(ResourceFactory factory, string set, ShaderStages stage, string entryPoint)
         {
             string name = $"{set}-{stage.ToString().ToLower()}.{GetExtension(factory.BackendType)}";
-            Console.WriteLine($"Loading shader '{name}'");
             return factory.CreateShader(new ShaderDescription(stage, ReadEmbeddedAssetBytes(name), entryPoint));
         }
 
@@ -478,12 +476,7 @@ namespace OpenWheels.Veldrid
         {
             using (Stream stream = OpenEmbeddedAssetStream(name, typeof(VeldridHelper)))
             {
-                Console.WriteLine($"Opened embedded asset stream: {stream}.");
                 var info = typeof(VeldridHelper).Assembly.GetManifestResourceInfo(name);
-                Console.WriteLine("Manifest resource info:");
-                Console.WriteLine($"- ReferencedAssembly: {info.ReferencedAssembly}");
-                Console.WriteLine($"- ResourceLocation: {info.ResourceLocation}");
-                Console.WriteLine($"- FileName: {info.FileName}");
                 byte[] bytes = new byte[stream.Length];
                 using (MemoryStream ms = new MemoryStream(bytes))
                 {
