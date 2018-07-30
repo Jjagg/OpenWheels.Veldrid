@@ -23,13 +23,19 @@
     <PackageReference Include="ShaderGen.Build" PrivateAssets="All" Version="1.2.0-g6c2ba50db6" />
   </ItemGroup>
 
-  <Target Name="IncludeGeneratedShaderEmbeddedResource" AfterTargets="AssignTargetPaths" Condition="'$(ShaderContentIncludePath)' != ''">
+  <ItemGroup>
+    <EmbeddedResource Include="$(OutputPath)Shaders/SpriteShader*">
+      <LogicalName>%(FileName)%(Extension)</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <!--Target Name="IncludeGeneratedShaderEmbeddedResource" AfterTargets="AssignTargetPaths" Condition="'$(ShaderContentIncludePath)' != ''">
     <ItemGroup>
       <EmbeddedResource Include="@(GeneratedShader)">
         <LogicalName>%(FileName)%(Extension)</LogicalName>
       </EmbeddedResource>
     </ItemGroup>
-  </Target>
+  </Target-->
 
   <ItemGroup>
     <PackageReference Include="Nerdbank.GitVersioning">
