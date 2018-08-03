@@ -3,14 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using System.Runtime.InteropServices;
 
 using OpenWheels.Rendering;
 
-using SixLabors.ImageSharp.PixelFormats;
-
 using Veldrid;
-using Veldrid.ImageSharp;
 
 namespace OpenWheels.Veldrid
 {
