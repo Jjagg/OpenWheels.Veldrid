@@ -16,7 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="OpenWheels.Rendering" Version="0.1.50-g4c7fabd6d9" />
+    <PackageReference Include="OpenWheels.Rendering" Version="0.1.51-g7ea88ab455" />
     <PackageReference Include="Veldrid" Version="4.3.3" />
     <PackageReference Include="ShaderGen.Primitives" Version="1.2.0-g6c2ba50db6" />
     <PackageReference Include="ShaderGen.Build" PrivateAssets="All" Version="1.2.0-g6c2ba50db6" />
